@@ -1,0 +1,9 @@
+---
+- import_tasks: install_debian.yml
+  when: ansible_os_family == 'Debian'
+
+- import_tasks: configure_mysql.yml
+
+- fail:
+    msg: "Unsupported OS!"
+  when: ansible_os_family != 'Debian'

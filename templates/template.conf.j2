@@ -1,0 +1,12 @@
+template Host "ceph-storage-host" {
+  import "generic-host"
+
+  vars.load_warn1 = 12
+  vars.load_crit1 = 16
+  vars.load_warn5 = 12
+  vars.load_crit5 = 16
+  vars.load_warn15 = 12
+  vars.load_crit15 = 16
+
+  vars.iostat_devices = [ "sda", "sdb", "sdc", "sdd" ]
+}

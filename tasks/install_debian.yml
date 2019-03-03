@@ -1,0 +1,99 @@
+---
+- name: Add icinga2 repo APT key
+  apt_key:
+    url: https://packages.icinga.com/icinga.key
+    state: present
+    
+- apt_repository:
+    repo: deb http://packages.icinga.com/ubuntu icinga-{{ ansible_distribution_release }} main
+    state: present
+    filename: icinga2
+- apt_repository:
+    repo: deb-src http://packages.icinga.com/ubuntu icinga-{{ ansible_distribution_release }} main
+    state: present
+    filename: icinga2
+
+- name: Install PHP requirements
+  apt:
+    name: ['php', 'php-gd', 'libapache2-mod-php']
+    state: present
+
+- name: Get PHP version
+  command: php --version
+  register: php_version
+  changed_when: false
+
+- name: Set PHP version
+  set_fact: php_version="{{ php_version.stdout_lines[0] | regex_replace('^PHP (\d\.\d).*$','\\1') }}"
+
+- apache2_module:
+    state: absent
+    name: ['mpm_event']
+    ignore_configcheck: True
+  notify:
+   - restart apache2
+- apache2_module:
+    state: present
+    name: mpm_prefork
+    ignore_configcheck: True
+  notify:
+   - restart apache2
+
+- apache2_module:
+    state: present
+    name: rewrite
+  notify:
+   - restart apache2
+
+- name: Timezone in php.ini
+  lineinfile:
+    path: '/etc/php/{{ php_version }}/apache2/php.ini'
+    regexp: '^;?date.timezone ='
+    line: 'date.timezone = "{{ ansible_date_time.tz }}"'
+  notify:
+    - restart apache2
+
+- name: Install icinga2
+  apt:
+    name: ['icinga2', 'icingaweb2', 'icinga2-ido-mysql']
+    state: present
+
+
+# - name: Restart HTTPD and Icinga2 to Apply the Configuration
+#   service:
+#     name: "{{ item }}"
+#     state: restarted
+#     enabled: yes
+#   with_items:
+#     - apache2
+#     - icinga2
+
+- name: Add user www-data to group icingaweb2
+  user:
+    name: www-data
+    groups: icingaweb2
+
+- name: Adjust Directory Owner and Group
+  file:
+    path: "/etc/icingaweb2/modules"
+    owner: www-data
+    group: icingaweb2
+    mode: 0755
+    state: directory
+    recurse: yes
+
+- name: Create Directory Owner and Group
+  file:
+    path: "/etc/icingaweb2/modules/{{ item }}"
+    owner: www-data
+    group: icingaweb2
+    mode: 0755
+    state: directory
+  with_items:
+    - monitoring
+    - translation
+
+- name: Enable icingaweb config
+  command: a2enconf icingaweb2
+  notify:
+    - restart apache2
